@@ -9,6 +9,8 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 app.get("/check", (req, res) => {
   return res.status(200).json({
@@ -18,6 +20,7 @@ app.get("/check", (req, res) => {
 });
 
 app.post("/add-data", async (req, res) => {
+  console.log(req.body);
   const newData = await Data.create(req.body);
   return res.status(201).json({
     status: "success",

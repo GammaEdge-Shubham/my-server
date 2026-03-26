@@ -1,8 +1,13 @@
 import express from "express";
 import cors from "cors";
-import mongoose from "mongoose";
 import dotenv from "dotenv";
-import Data from "./models/data.js";
+
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  ScanCommand,
+} from "@aws-sdk/lib-dynamodb";
 
 dotenv.config();
 
@@ -12,6 +17,12 @@ app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+const client = new DynamoDBClient({
+  region: "ap-south-1",
+});
+
+const docClient = DynamoDBDocumentClient.from(client);
+
 app.get("/check", (req, res) => {
   return res.status(200).json({
     message: "server is up",
@@ -19,32 +30,50 @@ app.get("/check", (req, res) => {
   });
 });
 
-app.post("/add-data", async (req, res) => {
-  console.log(req.body);
-  const newData = await Data.create(req.body);
-  return res.status(201).json({
-    status: "success",
-    message: "Data is created",
-    newData,
-    statusCode: 201,
-  });
+app.post("/add-user", async (req, res) => {
+  try {
+    const item = {
+      id: Date.now().toString(),
+      ...req.body,
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: "users",
+        Item: item,
+      }),
+    );
+
+    return res.status(201).json({
+      status: "success",
+      message: "Data is created",
+      data: item,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Error creating data" });
+  }
 });
 
-app.get("/get-all", async (req, res) => {
-  const allData = await Data.find();
-  return res.status(200).json({
-    status: "success",
-    message: "Fetched all data",
-    allData,
-    statusCode: 200,
-  });
+app.get("/get-users", async (req, res) => {
+  try {
+    const result = await docClient.send(
+      new ScanCommand({
+        TableName: "users",
+      }),
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Fetched all data",
+      data: result.Items,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Error fetching data" });
+  }
 });
 
-app.listen(
-  3000,
-  async () => console.log("Server is listening on http://localhost:3000"),
-  await mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => console.log("DB connected"))
-    .catch((error) => console.log("Something is wrong with DB", error)),
-);
+app.listen(3000, () => {
+  console.log("Server is running on port 3000");
+});
